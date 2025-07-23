@@ -1,21 +1,16 @@
 import express from "express";
-import { createUserController, deleteController, updateController } from "../controllers/user.controllers.js";
+import { createUserController, deleteUserController, getAllUsersController, updateUserController } from "../controllers/user.controllers.js";
 
 const router = express.Router();
 
 // /api/users/
-router.get('/user-details', (req, res) => {
-    // Fetch 
-
-    res.json({})
-});
-
+router.get('/', getAllUsersController);
 // /api/users/add
 router.post('/add', createUserController);
 
-router.post('/delete', deleteController)
+router.post('/delete', deleteUserController)
 
-router.post('/edit', updateController)
+router.post('/edit', updateUserController)
 
 
 export default router;

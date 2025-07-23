@@ -1,6 +1,13 @@
 import User from "../models/user.models.js"
 
 export class UserService {
+
+    getAll = async () => {
+        const users = await User.find();
+
+        return { message: "Users fetched successfully", data: users }
+    }
+
     create = async ({ name, id }) => {
         const newUser = await User.insertOne({
             name, id
