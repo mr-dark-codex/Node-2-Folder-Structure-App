@@ -1,11 +1,15 @@
 import chalk from 'chalk';
 import express from 'express';
+import session from 'express-session';
+import cookieParser from 'cookie-parser';
+
 import connectDB from './config/db.config.js';
 import userRoutes from './routes/user.routes.js';
 import nodemailer from 'nodemailer';
 import ejs from 'ejs'
 import path from 'path'
 import { fileURLToPath } from 'url';
+import User from './models/user.models.js';
 
 // ✅ Manual __filename and __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -18,7 +22,15 @@ connectDB();
 
 // Middleware
 app.use(express.json());
+app.use(cookieParser());
+
 // app.use(express.urlencoded({ extended: true }));
+// app.use(session({
+//     secret: 'secret_key', // 🔐 Use env in real app
+//     resave: false,
+//     saveUninitialized: true,
+//     cookie: { secure: false }, // Set true if using HTTPS
+// }))
 
 
 app.set('view engine', 'ejs');
@@ -46,6 +58,79 @@ app.get('/', (req, res) => {
     console.log(__dirname);
     res.json({ message: "BACKEND SERVER IS RUNNING" });
 });
+
+
+app.post('/signup', async (req, res) => {
+    const { email, password } = req.body;
+    console.log(req.body);
+
+
+    const user = await User.create({
+        email, password
+    })
+
+    await user.save();
+
+    res.json({ message: "User created successfully" });
+
+})
+
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    console.log(req.body);
+
+    // Basic validation
+    if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    // Simple email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    // Optional: check password length or complexity
+    if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Compare plain-text passwords (not secure, but as per your setup)
+    const result = user.password === password;
+
+    if (result) {
+        req.session.user = { email: user.email };
+        res.json({ message: "User logged in successfully" });
+    } else {
+        res.status(401).json({ message: "Invalid credentials" });
+    }
+});
+
+
+
+// 👉 Protected Route
+app.get('/dashboard', isAuthenticated, (req, res) => {
+    res.send(`Welcome to your dashboard`);
+});
+
+// Middlware Function 
+function isAuthenticated(req, res, next) {
+    if (req.session.user != null) {
+        next();
+    }
+    else {
+        res.status(401).json({ message: "Unauthorized" });
+    }
+}
 
 
 app.get('/send-mail', async (req, res) => {
