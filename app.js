@@ -2,6 +2,9 @@ import chalk from 'chalk';
 import express from 'express';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 import connectDB from './config/db.config.js';
 import userRoutes from './routes/user.routes.js';
@@ -23,6 +26,10 @@ connectDB();
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+}))
 
 // app.use(express.urlencoded({ extended: true }));
 // app.use(session({
@@ -35,6 +42,8 @@ app.use(cookieParser());
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+const JWT_SECRET = "mysecretkey";
 
 
 // Routes
@@ -64,9 +73,36 @@ app.post('/signup', async (req, res) => {
     const { email, password } = req.body;
     console.log(req.body);
 
+    // Basic validation
+    if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    // Simple email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    // Optional: check password length or complexity
+    if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+        return res.status(401).json({ message: "User already Exist" });
+    }
+
+
+    // Hashpassword 
+    const Hashpassword = await bcrypt.hash(password, 10);
+
 
     const user = await User.create({
-        email, password
+        email, password: Hashpassword
     })
 
     await user.save();
@@ -100,18 +136,36 @@ app.post('/login', async (req, res) => {
     // Check if user exists
     const user = await User.findOne({ email });
 
+    //  user = false
+    // !false = true
+
     if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // Compare plain-text passwords (not secure, but as per your setup)
-    const result = user.password === password;
+    // const result = user.password === password;
 
-    if (result) {
-        req.session.user = { email: user.email };
+    const isPasswordEqual = await bcrypt.compare(password, user.password);
+
+    console.log(isPasswordEqual);
+
+    if (isPasswordEqual) {
+        // req.session.user = { email: user.email };
+
+        const data = { user: user._id };
+        const token = jwt.sign(data, JWT_SECRET, { expiresIn: '1h' });
+
+        res.cookie('auth_token', token, {
+            httpOnly: true,
+            maxAge: 3600000,
+            sameSite: 'strict',
+            secure: false
+        });
         res.json({ message: "User logged in successfully" });
+
     } else {
-        res.status(401).json({ message: "Invalid credentials" });
+        res.status(401).json({ message: "Invalid credentials for password" });
     }
 });
 
