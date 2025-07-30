@@ -173,16 +173,54 @@ app.post('/login', async (req, res) => {
 
 // 👉 Protected Route
 app.get('/dashboard', isAuthenticated, (req, res) => {
-    res.send(`Welcome to your dashboard`);
+    res.json({ status: true, message: "Dashboard Page", user: req.user });
 });
 
-// Middlware Function 
-function isAuthenticated(req, res, next) {
-    if (req.session.user != null) {
-        next();
+// 👉 Protected Route
+app.get('/about', isAuthenticated, (req, res) => {
+    res.json({ status: true, message: "About Page" });
+})
+
+
+// Auth Checking Route
+app.get('/auth', isAuthenticated, (req, res) => {
+    if (req.user) {
+        res.json({ status: true, message: "Authorized" });
     }
     else {
-        res.status(401).json({ message: "Unauthorized" });
+        res.json({ status: false, message: "Unauthorized" });
+    }
+});
+
+
+app.post('/logout', (req, res) => {
+    res.clearCookie('auth_token');
+    res.json({ message: "Logged out successfully" });
+});
+
+// // Middlware Function 
+// function isAuthenticated(req, res, next) {
+//     if (req.session.user != null) {
+//         next();
+//     }
+//     else {
+//         res.status(401).json({ message: "Unauthorized" });
+//     }
+// }
+
+function isAuthenticated(req, res, next) {
+    const token = req.cookies.auth_token;
+
+    if (!token) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;  // {user : user._id}
+        next();
+    } catch (error) {
+        return res.status(401).json({ message: "Invalid token" });
     }
 }
 
